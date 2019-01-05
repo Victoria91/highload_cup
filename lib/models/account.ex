@@ -11,9 +11,12 @@ defmodule HighloadCup.Models.Account do
   """
 
   alias HighloadCup.Repo
+  alias HighloadCup.Models.Account
 
   use Ecto.Schema
   import Ecto.Changeset
+
+  @derive {Poison.Encoder, only: [:email, :fname]}
 
   schema "accounts" do
     field(:email, :string)
@@ -23,6 +26,7 @@ defmodule HighloadCup.Models.Account do
     field(:sex, :string)
     field(:birth, :integer)
     field(:country, :string)
+    field(:city, :string)
 
     field(:joined, :integer)
     field(:status, :string)
@@ -45,7 +49,8 @@ defmodule HighloadCup.Models.Account do
     :status,
     :interests,
     :premium,
-    :likes
+    :likes,
+    :city
   ]
 
   @doc """
@@ -54,11 +59,23 @@ defmodule HighloadCup.Models.Account do
   def changeset(struct, params \\ %{}) do
     struct
     |> cast(params, @cast_fields)
+    |> unique_constraint(:email)
+    |> unique_constraint(:phone)
   end
 
   def insert(%{} = params) do
     %__MODULE__{}
     |> changeset(params)
     |> Repo.insert()
+  end
+
+  def update(id, params) do
+    case Repo.get(Account, id) do
+      %Account{} = account ->
+        changeset(account, params) |> Repo.update()
+
+      nil ->
+        {:error, :not_found}
+    end
   end
 end

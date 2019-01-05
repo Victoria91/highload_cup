@@ -7,7 +7,11 @@ defmodule HighloadCup.Application do
 
   def start(_type, _args) do
     children = [
-      Plug.Adapters.Cowboy.child_spec(:http, HighloadCup, [], port: 8080),
+      Plug.Adapters.Cowboy.child_spec(
+        scheme: :http,
+        plug: HighloadCup.Router,
+        options: [port: 8080]
+      ),
       {HighloadCup.Repo, []}
     ]
 
