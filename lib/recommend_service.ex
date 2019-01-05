@@ -24,9 +24,7 @@ defmodule HighloadCup.RecommendService do
       sname: a.sname,
       birth: a.birth,
       premium: a.premium
-      # birth: a.birth,
-      # status: a.status,
-      # premium: fragment("(premium->>'finish')::bigint > ?", ^current_time)
+      # premium_true: fragment("(premium->>'finish')::bigint > ?", ^current_time)
 
       # different_interests:
       #   fragment(
@@ -36,7 +34,7 @@ defmodule HighloadCup.RecommendService do
       #   )
     })
     |> order_by([a], [
-      fragment("(premium->>'finish')::bigint > ? DESC NULLS LAST", ^current_time),
+      desc: fragment("((premium->>'finish')::bigint > ?)::int = 1 and premium is not null", ^current_time),
       desc: a.status == "свободны",
       desc: a.status == "всё сложно",
       asc:
@@ -59,6 +57,7 @@ defmodule HighloadCup.RecommendService do
     )
     |> limit(^limit_value)
     |> Repo.all()
+    |> Enum.map(fn res -> Enum.filter(res, fn {_, v} -> v end) |> Enum.into(%{}) end)
   end
 
   def base_query(%{"city" => city}) do

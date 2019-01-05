@@ -4,7 +4,7 @@ defmodule HighloadCup.SearchService do
   alias HighloadCup.Models.Account
   alias HighloadCup.Repo
 
-  @legal_ops ["year", "eq", "null", "neq", "now", "domain", "lt", "gt", "any", "starts", "code"]
+  @legal_ops ["year", "eq", "null", "neq", "now", "domain", "lt", "gt", "any", "starts", "code", "contains"]
 
   def perform(query_map) do
     decoded_query =
@@ -33,11 +33,11 @@ defmodule HighloadCup.SearchService do
   def where_clause(query, {field_name, operation, value})
       when operation in ["eq", "year"] and field_name in ["birth", "joined"] do
     {start_date, end_date} = fetch_year_boundaries(value)
-
+ # + 631152000
     query
     |> where(
       [a],
-      fragment("? between ? and ?", field(a, ^String.to_atom(field_name)), ^start_date, ^end_date)
+      fragment("? between ? and ?", field(a, ^String.to_atom(field_name)), ^(start_date), ^(end_date))
     )
   end
 
