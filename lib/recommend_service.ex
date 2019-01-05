@@ -33,8 +33,13 @@ defmodule HighloadCup.RecommendService do
       #     a.interests
       #   )
     })
-    |> order_by([a], [
-      desc: fragment("((premium->>'finish')::bigint > ?)::int = 1 and premium is not null", ^current_time),
+    |> order_by(
+      [a],
+      desc:
+        fragment(
+          "((premium->>'finish')::bigint > ?)::int = 1 and premium is not null",
+          ^current_time
+        ),
       desc: a.status == "свободны",
       desc: a.status == "всё сложно",
       asc:
@@ -43,7 +48,7 @@ defmodule HighloadCup.RecommendService do
           ^id
         ),
       asc: fragment("@(birth - (select birth from accounts where id = ?))", ^id)
-    ])
+    )
     |> where([a], a.id != ^id)
     |> where([a], a.sex != ^sex)
     |> where(

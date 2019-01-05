@@ -85,30 +85,36 @@ defmodule HighloadCup do
   end
 
   def recommend(%{path_params: %{"id" => id}} = conn, _opts) do
-    case Repo.get(Account, id) do
-      %Account{} = account ->
-        result =
-          Plug.Conn.Query.decode(conn.query_string) |> RecommendService.perform(account)
-          |> IO.inspect()
+    decoded_params = Plug.Conn.Query.decode(conn.query_string)
 
+    with %{} = params <- validate_params(decoded_params),
+         %Account{} = account <- Repo.get(Account, id) do
+      result = RecommendService.perform(params, account)
+
+      conn
+      |> put_resp_content_type("text/plain")
+      |> send_resp(200, %{accounts: result} |> Poison.encode!())
+    else
+      nil ->
         conn
-        |> put_resp_content_type("text/plain")
-        |> send_resp(200, %{accounts: result} |> Poison.encode!())
+        |> send_resp(404, "ffnot found")
 
       _ ->
         conn
-        |> send_resp(404, "ff")
+        |> send_resp(400, "ff")
     end
   end
 
   defp validate_params(%{"keys" => keys} = params) do
-    not_valid_keys =
-      (String.split(keys, ",") -- ["sex", "status", "interests", "country", "city"])
+    not_valid_keys = String.split(keys, ",") -- ["sex", "status", "interests", "country", "city"]
 
     if Enum.any?(not_valid_keys) |> IO.inspect(), do: :error
   end
 
   defp validate_params(%{"limit" => limit} = params) do
-    Integer.parse(limit) |> IO.inspect()
+    case Integer.parse(limit) do
+      {_, _} -> params
+      _ -> :error
+    end
   end
 end
