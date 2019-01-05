@@ -1,25 +1,32 @@
 defmodule HighloadCup.RecommendService do
   alias HighloadCup.Models.Account
-  alias HighloadCup.Repo
+  alias HighloadCup.{Repo, SearchService}
 
   import Ecto.Query
 
-  def perform(%{"limit" => limit_value} = search_params, %{id: id, interests: interests}) do
+  def perform(%{"limit" => limit_value} = search_params, %{id: id, interests: interests, sex: sex}) do
     # highload_cup=# select array_length(array(select unnest(ARRAY[1, 2, 7, 21]) except select unnest(ARRAY[2, 3, 4, 5])), 1);
     #  array_length
     # --------------
     #             3
     # (1 row)
-    current_time = :os.system_time(:millisecond)
+
+    # current_time = :os.system_time(:millisecond)
+    current_time = 1_546_083_844
     interests |> IO.inspect(label: "source interests")
 
-    Account
+    base_query(search_params)
     |> select([a], %{
       id: a.id,
-      interests: a.interests,
-      birth: a.birth,
+      email: a.email,
       status: a.status,
-      premium: fragment("(premium->>'finish')::bigint > ?", ^current_time)
+      fname: a.fname,
+      sname: a.sname,
+      birth: a.birth,
+      premium: a.premium
+      # birth: a.birth,
+      # status: a.status,
+      # premium: fragment("(premium->>'finish')::bigint > ?", ^current_time)
 
       # different_interests:
       #   fragment(
@@ -40,6 +47,7 @@ defmodule HighloadCup.RecommendService do
       asc: fragment("@(birth - (select birth from accounts where id = ?))", ^id)
     ])
     |> where([a], a.id != ^id)
+    |> where([a], a.sex != ^sex)
     |> where(
       [a],
       fragment(
@@ -52,4 +60,14 @@ defmodule HighloadCup.RecommendService do
     |> limit(^limit_value)
     |> Repo.all()
   end
+
+  def base_query(%{"city" => city}) do
+    SearchService.where_clause(Account, {"city", "eq", city})
+  end
+
+  def base_query(%{"country" => country}) do
+    SearchService.where_clause(Account, {"country", "eq", country})
+  end
+
+  def base_query(_), do: Account
 end

@@ -1,7 +1,10 @@
 defmodule HighloadCup.SearchService do
   import Ecto.Query
+
   alias HighloadCup.Models.Account
   alias HighloadCup.Repo
+
+  @legal_ops ["year", "eq", "null", "neq", "now", "domain", "lt", "gt", "any", "starts", "code"]
 
   def perform(query_map) do
     decoded_query =
@@ -9,13 +12,33 @@ defmodule HighloadCup.SearchService do
       |> decode_query
       |> IO.inspect(label: "decoded")
 
+    illigal_clauses = Enum.any?(decoded_query, fn {_, op, _} -> op not in @legal_ops end)
+
+    perform_where_query(decoded_query, illegal_clauses: illigal_clauses)
+  end
+
+  def perform_where_query(_, illegal_clauses: true), do: :error
+
+  def perform_where_query(decoded_query, illegal_clauses: false) do
     Enum.reduce(decoded_query, Account, fn query_line, acc -> where_clause(acc, query_line) end)
+    |> select_clause(Enum.map(decoded_query, fn {field, _, _} -> String.to_atom(field) end))
     |> Repo.all()
   end
 
-  def where_clause(query, {"birth", "lt", value}) do
+  def select_clause(query, array_of_fields) do
     query
-    |> where([a], a.birth > ^value)
+    |> select([a], merge(map(a, ^array_of_fields), %{id: a.id, email: a.email}))
+  end
+
+  def where_clause(query, {field_name, operation, value})
+      when operation in ["eq", "year"] and field_name in ["birth", "joined"] do
+    {start_date, end_date} = fetch_year_boundaries(value)
+
+    query
+    |> where(
+      [a],
+      fragment("? between ? and ?", field(a, ^String.to_atom(field_name)), ^start_date, ^end_date)
+    )
   end
 
   def where_clause(query, {"premium", "now", "1"}) do
@@ -61,9 +84,19 @@ defmodule HighloadCup.SearchService do
   end
 
   # highload_cup=# SELECT * FROM accounts WHERE interests @> '{one, fsfdf}'::varchar[];
-  def where_clause(query, {"interests", "contains", value}) do
+  def where_clause(query, {"interests", operation, value}) when operation in ["contains", "eq"] do
     query
     |> where([a], fragment("? @> ?::varchar[]", a.interests, ^String.split(value, ",")))
+  end
+
+  def where_clause(query, {"sname", "starts", value}) do
+    query
+    |> where([a], ilike(a.sname, ^"#{value}%"))
+  end
+
+  def where_clause(query, {"phone", "code", value}) do
+    query
+    |> where([a], ilike(a.phone, ^"%(#{value})%"))
   end
 
   # 4	fname	eq - соответствие конкретному имени;
@@ -91,6 +124,14 @@ defmodule HighloadCup.SearchService do
   def where_clause(query, {field_name, "null", "1"}) do
     query
     |> where([a], is_nil(field(a, ^String.to_atom(field_name))))
+  end
+
+  def fetch_year_boundaries(year) do
+    year = String.to_integer(year)
+    {:ok, start_date, 0} = DateTime.from_iso8601("#{year - 1}-12-31T23:59:59Z")
+    {:ok, end_date, 0} = DateTime.from_iso8601("#{year + 1}-01-01T00:00:00Z")
+
+    {DateTime.to_unix(start_date), DateTime.to_unix(end_date)}
   end
 
   def decode_query(map) do

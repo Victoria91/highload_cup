@@ -1,19 +1,17 @@
 defmodule HighloadCup.GroupService do
+  alias HighloadCup.Models.Account
+  alias HighloadCup.SearchService
+
   import Ecto.Query
 
   def perform(%{"limit" => limit, "order" => order, "keys" => keys} = query_map) do
-    [{field, value}] =
-      query_map
-      |> Map.drop(["order", "keys", "limit", "query_id"])
-      |> Map.to_list()
-      |> IO.inspect(label: "values for filter")
-
     list_of_group_fields =
       keys
       |> String.split(",")
       |> Enum.map(&String.to_atom/1)
 
-    HighloadCup.SearchService.where_clause(HighloadCup.Models.Account, {field, "eq", value})
+    query_map
+    |> base_query
     |> group_by_clause(list_of_group_fields)
     |> order_by_clause(order)
     |> limit_clause(limit)
@@ -23,6 +21,7 @@ defmodule HighloadCup.GroupService do
 
   def group_by_clause(query, field_atom) when is_atom(field_atom) do
     query
+    |> where([a], not is_nil(field(a, ^field_atom)))
     |> group_by([a], field(a, ^field_atom))
   end
 
@@ -44,5 +43,22 @@ defmodule HighloadCup.GroupService do
   def limit_clause(query, limit_value) do
     query
     |> limit(^limit_value)
+  end
+
+  def base_query(query_map) do
+    filter_values =
+      query_map
+      |> Map.drop(["order", "keys", "limit", "query_id"])
+      |> Map.to_list()
+
+    perform_filtering(filter_values)
+  end
+
+  def perform_filtering([]), do: Account
+
+  def perform_filtering(filter_values_list) do
+    Enum.reduce(filter_values_list, Account, fn {field, value}, acc ->
+      SearchService.where_clause(acc, {field, "eq", value})
+    end)
   end
 end

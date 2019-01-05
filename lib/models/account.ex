@@ -50,7 +50,8 @@ defmodule HighloadCup.Models.Account do
     :interests,
     :premium,
     :likes,
-    :city
+    :city,
+    :id
   ]
 
   @doc """

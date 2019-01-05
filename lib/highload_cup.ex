@@ -17,7 +17,6 @@ defmodule HighloadCup do
   end
 
   def new(conn, opts) do
-    IO.inspect("NEW+++++++++++")
     {:ok, body, conn} = read_body(conn, opts)
     {:ok, decoded_body} = body |> Poison.decode() |> IO.inspect()
 
@@ -34,8 +33,6 @@ defmodule HighloadCup do
   end
 
   def update(%{path_params: %{"id" => id}} = conn, opts) do
-    IO.inspect("NEW+++++++++++")
-    # with %Account = Repo.get(Account, id) do
     {:ok, body, conn} = read_body(conn, opts)
     {:ok, decoded_body} = body |> Poison.decode() |> IO.inspect()
 
@@ -56,38 +53,62 @@ defmodule HighloadCup do
   end
 
   def filter(conn, opts) do
-    # {:ok, body, conn} = read_body(conn, opts) 
-    Plug.Conn.Query.decode(conn.query_string) |> SearchService.perform() |> IO.inspect()
-    # {:ok, decoded_body} = body |> Poison.decode |>  IO.inspect
+    params = Plug.Conn.Query.decode(conn.query_string) |> IO.inspect()
 
-    # HighloadCup.Repo.all(Account) |> IO.inspect
+    case SearchService.perform(params) do
+      :error ->
+        conn
+        |> send_resp(400, "err")
 
-    conn
-    |> put_resp_content_type("text/plain")
-    |> send_resp(200, "Hello filter!\n")
+      result ->
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(200, %{accounts: result} |> Poison.encode!())
+    end
   end
 
   def group(conn, opts) do
-    res = Plug.Conn.Query.decode(conn.query_string) |> GroupService.perform() |> IO.inspect()
+    params = Plug.Conn.Query.decode(conn.query_string) |> IO.inspect()
 
-    conn
-    |> put_resp_content_type("text/plain")
-    |> send_resp(200, %{groups: res} |> Poison.encode!() |> IO.inspect())
+    case validate_params(params) do
+      :error ->
+        conn
+        |> send_resp(400, "err")
+
+      _ ->
+        res = GroupService.perform(params)
+
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(200, %{groups: res} |> Poison.encode!() |> IO.inspect())
+    end
   end
 
   def recommend(%{path_params: %{"id" => id}} = conn, _opts) do
     case Repo.get(Account, id) do
       %Account{} = account ->
-        Plug.Conn.Query.decode(conn.query_string) |> RecommendService.perform(account)
-        |> IO.inspect()
+        result =
+          Plug.Conn.Query.decode(conn.query_string) |> RecommendService.perform(account)
+          |> IO.inspect()
 
         conn
         |> put_resp_content_type("text/plain")
-        |> send_resp(200, "Hello recommend!\n")
+        |> send_resp(200, %{accounts: result} |> Poison.encode!())
 
       _ ->
         conn
-        |> send_resp(404, "")
+        |> send_resp(404, "ff")
     end
+  end
+
+  defp validate_params(%{"keys" => keys} = params) do
+    not_valid_keys =
+      (String.split(keys, ",") -- ["sex", "status", "interests", "country", "city"])
+
+    if Enum.any?(not_valid_keys) |> IO.inspect(), do: :error
+  end
+
+  defp validate_params(%{"limit" => limit} = params) do
+    Integer.parse(limit) |> IO.inspect()
   end
 end
