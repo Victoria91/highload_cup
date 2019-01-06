@@ -19,7 +19,7 @@ defmodule HighloadCup.SearchService do
     "contains"
   ]
 
-  def perform(query_map) do
+  def perform(%{"limit" => limit} = query_map) do
     decoded_query =
       query_map
       |> decode_query
@@ -27,20 +27,53 @@ defmodule HighloadCup.SearchService do
 
     illigal_clauses = Enum.any?(decoded_query, fn {_, op, _} -> op not in @legal_ops end)
 
-    perform_where_query(decoded_query, illegal_clauses: illigal_clauses)
+    perform_where_query(decoded_query, limit, illegal_clauses: illigal_clauses)
   end
 
-  def perform_where_query(_, illegal_clauses: true), do: :error
+  def perform_where_query(_, _, illegal_clauses: true), do: :error
 
-  def perform_where_query(decoded_query, illegal_clauses: false) do
-    Enum.reduce(decoded_query, Account, fn query_line, acc -> where_clause(acc, query_line) end)
-    |> select_clause(Enum.map(decoded_query, fn {field, _, _} -> String.to_atom(field) end))
-    |> Repo.all()
+  def perform_where_query(decoded_query, limit, illegal_clauses: false) do
+    try do
+      result =
+        Enum.reduce(decoded_query, Account, fn query_line, acc ->
+          where_clause(acc, query_line)
+        end)
+        |> select_clause(values_for_select(decoded_query))
+        |> order_clause()
+        |> limit_clause(limit)
+        |> Repo.all()
+
+      {:ok, result}
+    rescue
+      _e in [Ecto.Query.CastError, FunctionClauseError] ->
+        :error
+    end
+  end
+
+  defp values_for_select(decoded_query) do
+    decoded_query
+    |> Enum.reject(fn {_, operator, value} -> operator == "null" && value == "1" end)
+    |> Enum.map(fn {field, _, _} -> String.to_atom(field) end)
+  end
+
+  def select_clause(query, []) do
+    query
+    |> select([a], %{id: a.id, email: a.email})
   end
 
   def select_clause(query, array_of_fields) do
     query
     |> select([a], merge(map(a, ^array_of_fields), %{id: a.id, email: a.email}))
+  end
+
+  def limit_clause(query, limit_value) do
+    query
+    |> limit(^limit_value)
+  end
+
+  def order_clause(query) do
+    query
+    |> order_by([a], desc: a.id)
   end
 
   def where_clause(query, {field_name, operation, value})

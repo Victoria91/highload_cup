@@ -5,14 +5,9 @@ defmodule HighloadCup.GroupService do
   import Ecto.Query
 
   def perform(%{"limit" => limit, "order" => order, "keys" => keys} = query_map) do
-    list_of_group_fields =
-      keys
-      |> String.split(",")
-      |> Enum.map(&String.to_atom/1)
-
     query_map
     |> base_query
-    |> group_by_clause(list_of_group_fields)
+    |> group_by_clause(keys)
     |> order_by_clause(order)
     |> limit_clause(limit)
     |> IO.inspect()

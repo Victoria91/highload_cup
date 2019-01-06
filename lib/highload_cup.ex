@@ -55,15 +55,15 @@ defmodule HighloadCup do
   def filter(conn, opts) do
     params = Plug.Conn.Query.decode(conn.query_string) |> IO.inspect()
 
-    case SearchService.perform(params) do
-      :error ->
+    with %{} = params <- validate_params(params),
+         {:ok, result} <- SearchService.perform(params) do
+      conn
+      |> put_resp_content_type("text/plain")
+      |> send_resp(200, %{accounts: result} |> Poison.encode!())
+    else
+      _ ->
         conn
         |> send_resp(400, "err")
-
-      result ->
-        conn
-        |> put_resp_content_type("text/plain")
-        |> send_resp(200, %{accounts: result} |> Poison.encode!())
     end
   end
 
@@ -75,7 +75,7 @@ defmodule HighloadCup do
         conn
         |> send_resp(400, "err")
 
-      _ ->
+      params ->
         res = GroupService.perform(params)
 
         conn
@@ -106,9 +106,16 @@ defmodule HighloadCup do
   end
 
   defp validate_params(%{"keys" => keys} = params) do
-    not_valid_keys = String.split(keys, ",") -- ["sex", "status", "interests", "country", "city"]
+    params = %{
+      params
+      | "keys" => String.split(keys, ",") |> IO.inspect() |> Enum.map(&String.to_atom/1)
+    }
 
-    if Enum.any?(not_valid_keys) |> IO.inspect(), do: :error
+    if Enum.any?(params["keys"] -- [:sex, :status, :interests, :country, :city]) do
+      :error
+    else
+      params
+    end
   end
 
   defp validate_params(%{"limit" => limit} = params) do

@@ -15,54 +15,58 @@ defmodule HighloadCup.RecommendService do
     current_time = 1_546_083_844
     interests |> IO.inspect(label: "source interests")
 
-    base_query(search_params)
-    |> select([a], %{
-      id: a.id,
-      email: a.email,
-      status: a.status,
-      fname: a.fname,
-      sname: a.sname,
-      birth: a.birth,
-      premium: a.premium
-      # premium_true: fragment("(premium->>'finish')::bigint > ?", ^current_time)
+    if interests do
+      base_query(search_params)
+      |> select([a], %{
+        id: a.id,
+        email: a.email,
+        status: a.status,
+        fname: a.fname,
+        sname: a.sname,
+        birth: a.birth,
+        premium: a.premium
+        # premium_true: fragment("(premium->>'finish')::bigint > ?", ^current_time)
 
-      # different_interests:
-      #   fragment(
-      #     "array (select unnest (array (select interests from accounts where id = ?)) except select unnest(?))",
-      #     ^id,
-      #     a.interests
-      #   )
-    })
-    |> order_by(
-      [a],
-      desc:
-        fragment(
-          "((premium->>'finish')::bigint > ?)::int = 1 and premium is not null",
-          ^current_time
-        ),
-      desc: a.status == "свободны",
-      desc: a.status == "всё сложно",
-      asc:
-        fragment(
-          "cardinality ( array ( select unnest (array (select interests from accounts where id = ?)) except select unnest(interests ) ) )",
-          ^id
-        ),
-      asc: fragment("@(birth - (select birth from accounts where id = ?))", ^id)
-    )
-    |> where([a], a.id != ^id)
-    |> where([a], a.sex != ^sex)
-    |> where(
-      [a],
-      fragment(
-        "cardinality(array (select unnest (array (select interests from accounts where id = ?)) except select unnest(?))) < ?",
-        ^id,
-        a.interests,
-        ^length(interests)
+        # different_interests:
+        #   fragment(
+        #     "array (select unnest (array (select interests from accounts where id = ?)) except select unnest(?))",
+        #     ^id,
+        #     a.interests
+        #   )
+      })
+      |> order_by(
+        [a],
+        desc:
+          fragment(
+            "((premium->>'finish')::bigint > ?)::int = 1 and premium is not null",
+            ^current_time
+          ),
+        desc: a.status == "свободны",
+        desc: a.status == "всё сложно",
+        asc:
+          fragment(
+            "cardinality ( array ( select unnest (array (select interests from accounts where id = ?)) except select unnest(interests ) ) )",
+            ^id
+          ),
+        asc: fragment("@(birth - (select birth from accounts where id = ?))", ^id)
       )
-    )
-    |> limit(^limit_value)
-    |> Repo.all()
-    |> Enum.map(fn res -> Enum.filter(res, fn {_, v} -> v end) |> Enum.into(%{}) end)
+      |> where([a], a.id != ^id)
+      |> where([a], a.sex != ^sex)
+      |> where(
+        [a],
+        fragment(
+          "cardinality(array (select unnest (array (select interests from accounts where id = ?)) except select unnest(?))) < ?",
+          ^id,
+          a.interests,
+          ^length(interests)
+        )
+      )
+      |> limit(^limit_value)
+      |> Repo.all()
+      |> Enum.map(fn res -> Enum.filter(res, fn {_, v} -> v end) |> Enum.into(%{}) end)
+    else
+      []
+    end
   end
 
   def base_query(%{"city" => city}) do
