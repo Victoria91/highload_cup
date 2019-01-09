@@ -52,6 +52,7 @@ defmodule HighloadCup.SearchService do
 
   defp values_for_select(decoded_query) do
     decoded_query
+    |> Enum.reject(fn {field, _, _} -> field in ["interests", "likes"] end)
     |> Enum.reject(fn {_, operator, value} -> operator == "null" && value == "1" end)
     |> Enum.map(fn {field, _, _} -> String.to_atom(field) end)
   end
@@ -62,6 +63,8 @@ defmodule HighloadCup.SearchService do
   end
 
   def select_clause(query, array_of_fields) do
+    array_of_fields |> IO.inspect(label: "array_of_fields")
+
     query
     |> select([a], merge(map(a, ^array_of_fields), %{id: a.id, email: a.email}))
   end
@@ -100,7 +103,13 @@ defmodule HighloadCup.SearchService do
 
   def where_clause(query, {"status", "neq", value}) do
     query
-    |> where([a], a.country != ^value)
+    |> where([a], a.status != ^value)
+  end
+
+  def where_clause(query, {"likes", _, values}) when is_list(values) do
+    Enum.reduce(values, query, fn value, acc ->
+      where_clause(acc, {"likes", "contains", value})
+    end)
   end
 
   def where_clause(query, {"likes", _, value}) do
@@ -118,7 +127,7 @@ defmodule HighloadCup.SearchService do
     |> where([a], field(a, ^String.to_atom(field_name)) < ^value)
   end
 
-  def where_clause(query, {field_name, "gt", value}) do
+  def where_clause(query, {field_name, "gt", value}) when field_name != "city" do
     query
     |> where([a], field(a, ^String.to_atom(field_name)) > ^value)
   end
@@ -182,10 +191,17 @@ defmodule HighloadCup.SearchService do
 
   def decode_query(map) do
     map
+    |> normalize_params
     |> Enum.reject(fn {key, _} -> key in ["limit", "query_id"] end)
     |> Enum.map(fn {key, value} ->
       [column, operation] = String.split(key, "_")
       {column, operation, value}
     end)
   end
+
+  def normalize_params(%{"likes_contains" => value} = params) do
+    %{params | "likes_contains" => String.split(value, ",")}
+  end
+
+  def normalize_params(params), do: params
 end

@@ -39,5 +39,4 @@ config :highload_cup, HighloadCup.Repo,
   hostname: "localhost",
   pool_size: 10,
   timeout: 15_000,
-  pool_timeout: 15_000,
   ownership_timeout: 15_000

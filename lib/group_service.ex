@@ -8,7 +8,7 @@ defmodule HighloadCup.GroupService do
     query_map
     |> base_query
     |> group_by_clause(keys)
-    |> order_by_clause(order)
+    |> order_by_clause(order, keys)
     |> limit_clause(limit)
     |> IO.inspect()
     |> HighloadCup.Repo.all()
@@ -16,7 +16,6 @@ defmodule HighloadCup.GroupService do
 
   def group_by_clause(query, field_atom) when is_atom(field_atom) do
     query
-    |> where([a], not is_nil(field(a, ^field_atom)))
     |> group_by([a], field(a, ^field_atom))
   end
 
@@ -25,14 +24,14 @@ defmodule HighloadCup.GroupService do
     |> select([a], merge(map(a, ^array_of_fields), %{count: count(a.id)}))
   end
 
-  def order_by_clause(query, "-1") do
+  def order_by_clause(query, "-1", keys) do
     query
-    |> order_by(desc: :count)
+    |> order_by(^generate_order_by_params(keys, :desc))
   end
 
-  def order_by_clause(query, "1") do
+  def order_by_clause(query, "1", keys) do
     query
-    |> order_by(asc: :count)
+    |> order_by(^generate_order_by_params(keys, :asc))
   end
 
   def limit_clause(query, limit_value) do
@@ -47,6 +46,10 @@ defmodule HighloadCup.GroupService do
       |> Map.to_list()
 
     perform_filtering(filter_values)
+  end
+
+  def generate_order_by_params(keys, order) when order in [:desc, :asc] do
+    Enum.reduce(keys, ["#{order}": :count], fn key, acc -> acc ++ ["#{order}": key] end)
   end
 
   def perform_filtering([]), do: Account

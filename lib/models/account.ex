@@ -16,7 +16,7 @@ defmodule HighloadCup.Models.Account do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @derive {Poison.Encoder, only: [:email, :fname]}
+  @derive {Poison.Encoder, only: [:email, :id, :status, :fname, :sname]}
 
   schema "accounts" do
     field(:email, :string)

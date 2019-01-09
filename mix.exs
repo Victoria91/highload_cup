@@ -23,9 +23,11 @@ defmodule HighloadCup.MixProject do
   defp deps do
     [
       {:plug_cowboy, "~> 2.0"},
-      {:ecto, "~> 2.2.8"},
+      {:ecto, "~> 3.0.6"},
       {:postgrex, ">= 0.0.0"},
-      {:poison, "~> 3.1"}
+      {:poison, "~> 3.1"},
+      {:ecto_sql, "~> 3.0"},
+      {:jason, "~> 1.0"}
     ]
   end
 end

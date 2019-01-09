@@ -24,6 +24,10 @@ defmodule HighloadCup.Router do
     HighloadCup.recommend(conn, [])
   end
 
+  get "accounts/:id/suggest" do
+    HighloadCup.suggest(conn, [])
+  end
+
   # forward "/users", to: UsersRouter
 
   match _ do
