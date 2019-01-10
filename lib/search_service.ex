@@ -135,7 +135,7 @@ defmodule HighloadCup.SearchService do
   # highload_cup=# SELECT * FROM accounts WHERE interests && ARRAY['one', 'fsfdf']::varchar[];
   def where_clause(query, {"interests", "any", value}) do
     query
-    |> where([a], fragment("? && ARRAY[?]::varchar[]", a.interests, ^value))
+    |> where([a], fragment("? && ARRAY[?]::varchar[]", a.interests, type(^String.split(value, ","), {:array, :string})))
   end
 
   # highload_cup=# SELECT * FROM accounts WHERE interests @> '{one, fsfdf}'::varchar[];
