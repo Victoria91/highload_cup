@@ -14,14 +14,35 @@ defmodule HighloadCup.GroupService do
     |> HighloadCup.Repo.all()
   end
 
+  def group_by_clause(query, :interests) do
+    query
+    |> group_by([a], fragment("unnest_interests"))
+  end
+
   def group_by_clause(query, field_atom) when is_atom(field_atom) do
     query
     |> group_by([a], field(a, ^field_atom))
   end
 
+  def group_by_clause(query, array_of_fields) when array_of_fields == [:interests] do
+    Enum.reduce(array_of_fields, query, fn field, acc -> group_by_clause(acc, field) end)
+    |> select([a], %{count: count(a.id), interests: fragment("unnest(?) as unnest_interests", a.interests)})
+  end
+
   def group_by_clause(query, array_of_fields) do
+    array_of_fields |> IO.inspect
     Enum.reduce(array_of_fields, query, fn field, acc -> group_by_clause(acc, field) end)
     |> select([a], merge(map(a, ^array_of_fields), %{count: count(a.id)}))
+  end
+
+  def order_by_clause(query, "-1", [:interests]) do
+    query
+    |> order_by([desc: :count, desc: fragment("unnest_interests")])
+  end
+
+  def order_by_clause(query, "1", [:interests]) do
+    query
+    |> order_by([asc: :count, asc: fragment("unnest_interests")])
   end
 
   def order_by_clause(query, "-1", keys) do
@@ -56,7 +77,10 @@ defmodule HighloadCup.GroupService do
 
   def perform_filtering(filter_values_list) do
     Enum.reduce(filter_values_list, Account, fn {field, value}, acc ->
-      SearchService.where_clause(acc, {field, "eq", value})
+      SearchService.where_clause(acc, where_clause_data({field, value}))
     end)
   end
+
+  defp where_clause_data({"interests", value}), do: {"interests", "contains", value}
+  defp where_clause_data({field, value}), do: {field, "eq", value}
 end

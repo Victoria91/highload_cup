@@ -139,7 +139,7 @@ defmodule HighloadCup.SearchService do
   end
 
   # highload_cup=# SELECT * FROM accounts WHERE interests @> '{one, fsfdf}'::varchar[];
-  def where_clause(query, {"interests", operation, value}) when operation in ["contains", "eq"] do
+  def where_clause(query, {"interests", "contains", value}) do
     query
     |> where([a], fragment("? @> ?::varchar[]", a.interests, ^String.split(value, ",")))
   end

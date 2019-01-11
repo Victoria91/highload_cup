@@ -8,18 +8,12 @@ defmodule HighloadCup do
   # pass:  ["text/*"],
   # json_decoder: Poison
 
-  def call(conn, opts) do
-    conn
-    |> put_resp_content_type("text/plain")
-    |> send_resp(200, "Hello World!\n")
-  end
-
   def new(conn, opts) do
     {:ok, body, conn} = read_body(conn, opts)
     {:ok, decoded_body} = body |> Poison.decode() |> IO.inspect()
 
     case Account.insert(decoded_body) |> IO.inspect() do
-      {:ok, account} ->
+      {:ok, _account} ->
         conn
         |> put_resp_content_type("application/json")
         |> send_resp(201, "{}")
@@ -35,7 +29,7 @@ defmodule HighloadCup do
     {:ok, decoded_body} = body |> Poison.decode() |> IO.inspect()
 
     case Account.update(id, decoded_body) do
-      {:ok, account} ->
+      {:ok, _account} ->
         conn
         |> put_resp_content_type("application/json")
         |> send_resp(202, "{}")
@@ -50,7 +44,7 @@ defmodule HighloadCup do
     end
   end
 
-  def filter(conn, opts) do
+  def filter(conn, _) do
     params = Plug.Conn.Query.decode(conn.query_string) |> IO.inspect()
 
     with %{} = params <- validate_params(params),
@@ -65,7 +59,7 @@ defmodule HighloadCup do
     end
   end
 
-  def group(conn, opts) do
+  def group(conn, _) do
     params = Plug.Conn.Query.decode(conn.query_string) |> IO.inspect()
 
     case validate_params(params) do
@@ -111,6 +105,8 @@ defmodule HighloadCup do
       result =
         SuggestService.fetch(params, account) |> cut_blank_values |> IO.inspect(label: "resu;t")
 
+        result |> Enum.map(& &1.id) |> IO.inspect(label: "resulted ids")
+
       # require IEx; IEx.pry()
       conn
       |> put_resp_content_type("text/plain")
@@ -143,6 +139,10 @@ defmodule HighloadCup do
       params
     end
   end
+
+  defp validate_params(%{"city" => ""}), do: :error
+
+  defp validate_params(%{"country" => ""}), do: :error
 
   defp validate_params(%{"limit" => limit} = params) do
     case Integer.parse(limit) do
