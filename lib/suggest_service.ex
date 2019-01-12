@@ -57,7 +57,7 @@ defmodule HighloadCup.SuggestService do
 
     value_for_search = format_ids(account_like_ids)
 
-    accounts = fetch_similar_likes_accounts(account.id, value_for_search, params)
+    accounts = fetch_similar_likes_accounts(account.id, value_for_search, params) |> IO.inspect
 
     accounts |> Enum.map(& &1.id) |> IO.inspect(label: "similars")
 
@@ -88,7 +88,7 @@ defmodule HighloadCup.SuggestService do
       |> String.replace("[", "")
       |> String.replace("]", "")
       |> String.replace(",", ",|")
-      |> String.replace(" ", "")
+      # |> String.replace(" ", "")
       |> IO.inspect(label: "account_like_ids")
   end
 
