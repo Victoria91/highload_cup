@@ -92,7 +92,9 @@ defmodule HighloadCup.SearchService do
 
   def where_clause(query, {"premium", "now", "1"}) do
     query
-    |> where([a], fragment("(premium->>'finish')::bigint > ?", ^:os.system_time(:millisecond)))
+    |> where([a], fragment("(premium->>'finish')::bigint > ?", 1_546_083_844))
+
+    # |> where([a], fragment("(premium->>'finish')::bigint > ?", ^:os.system_time(:millisecond)))
   end
 
   def where_clause(query, {field_name, "eq", value})
@@ -135,7 +137,14 @@ defmodule HighloadCup.SearchService do
   # highload_cup=# SELECT * FROM accounts WHERE interests && ARRAY['one', 'fsfdf']::varchar[];
   def where_clause(query, {"interests", "any", value}) do
     query
-    |> where([a], fragment("? && ARRAY[?]::varchar[]", a.interests, type(^String.split(value, ","), {:array, :string})))
+    |> where(
+      [a],
+      fragment(
+        "? && ARRAY[?]::varchar[]",
+        a.interests,
+        type(^String.split(value, ","), {:array, :string})
+      )
+    )
   end
 
   # highload_cup=# SELECT * FROM accounts WHERE interests @> '{one, fsfdf}'::varchar[];
@@ -183,8 +192,8 @@ defmodule HighloadCup.SearchService do
 
   def fetch_year_boundaries(year) do
     year = String.to_integer(year)
-    {:ok, start_date, 0} = DateTime.from_iso8601("#{year - 1}-12-31T23:59:59Z")
-    {:ok, end_date, 0} = DateTime.from_iso8601("#{year + 1}-01-01T00:00:00Z")
+    {:ok, end_date, 0} = DateTime.from_iso8601("#{year}-12-31T23:59:59Z")
+    {:ok, start_date, 0} = DateTime.from_iso8601("#{year}-01-01T00:00:00Z")
 
     {DateTime.to_unix(start_date), DateTime.to_unix(end_date)}
   end

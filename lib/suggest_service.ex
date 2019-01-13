@@ -9,12 +9,14 @@ defmodule HighloadCup.SuggestService do
 
     result =
       perform(params, account)
+      |> Enum.filter(fn %{weight: weight} -> weight > 0 end)
       |> Enum.sort_by(fn %{weight: weight} -> weight end)
       |> Enum.reverse()
       |> Enum.map(& &1.not_in_list)
       |> Enum.filter(fn v -> v end)
       |> Enum.map(fn list -> Enum.sort(list) |> Enum.reverse() end)
       |> List.flatten()
+      |> Enum.uniq()
       |> Enum.take(String.to_integer(limit_value))
 
     Account
@@ -53,43 +55,41 @@ defmodule HighloadCup.SuggestService do
 
     # Mnesia.transaction(data_to_write)
 
-    account_like_ids = likes |> IO.inspect(label: "likes") |> Enum.map(& &1["id"])
+    account_like_ids = likes |> Enum.map(& &1["id"])
 
-    value_for_search = format_ids(account_like_ids)
+    accounts = fetch_similar_likes_accounts(account.id, account_like_ids, params) |> IO.inspect()
 
-    accounts = fetch_similar_likes_accounts(account.id, value_for_search, params) |> IO.inspect
-
-    accounts |> Enum.map(& &1.id) |> IO.inspect(label: "similars")
+    accounts |> Enum.map(& &1.id) |> IO.inspect(label: "similars", limit: :infinity)
 
     accounts
     |> Enum.map(fn account ->
-      fetch_res(account, account_like_ids, likes) |> IO.inspect(label: "result for #{account.id}")
+      res = fetch_res(account, account_like_ids, likes)
+      IO.inspect(res.weight, label: "result for #{account.id}")
+      res
     end)
   end
 
   def fetch_similar_likes_accounts(id, account_like_ids, params) do
-          Account
-      |> where(
-        [a],
-        fragment(
-          "?::text similar to ?",
-          a.likes,
-          ^"%(#{account_like_ids})%"
-        )
+    Account
+    |> where(
+      [a],
+      fragment(
+        "?::text similar to ?",
+        a.likes,
+        ^"%(#{format_ids(account_like_ids)})%"
       )
-      |> where_clause_by_params(params)
-      |> where([a], a.id != ^id)
-      |> Repo.all()
+    )
+    |> where_clause_by_params(params)
+    |> where([a], a.id != ^id)
+    |> Repo.all()
   end
 
-  def format_ids(account_like_ids) do
-      account_like_ids
-      |> inspect
-      |> String.replace("[", "")
-      |> String.replace("]", "")
-      |> String.replace(",", ",|")
-      # |> String.replace(" ", "")
-      |> IO.inspect(label: "account_like_ids")
+  defp format_ids(account_like_ids) do
+    account_like_ids
+    |> inspect(limit: :infinity)
+    |> String.replace("[", "")
+    |> String.replace("]", "")
+    |> String.replace(",", ",|")
   end
 
   def where_clause_by_params(query, %{"country" => country}) do
@@ -115,7 +115,7 @@ defmodule HighloadCup.SuggestService do
     Mnesia.transaction(data_to_write)
   end
 
-  defp fetch_res(%{likes: likes} = account, account_like_ids, account_likes) do
+  def fetch_res(%{likes: likes} = account, account_like_ids, account_likes) do
     result_ids = likes |> Enum.map(& &1["id"])
 
     results = result_ids |> Enum.group_by(fn like -> like in account_like_ids end)
@@ -138,7 +138,8 @@ defmodule HighloadCup.SuggestService do
         end)
     end
 
-    weights = if weights == :error, do: 0, else: weights |> Enum.sum
+    IO.inspect(weights, label: "weights")
+    weights = if weights == :error, do: 0, else: weights |> Enum.sum()
     %{not_in_list: not_in_list, weight: weights}
   end
 end

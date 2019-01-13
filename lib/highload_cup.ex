@@ -1,5 +1,7 @@
 defmodule HighloadCup do
   import Plug.Conn
+  import Ecto.Query
+
   use Plug.Builder
 
   alias HighloadCup.Models.Account
@@ -8,11 +10,21 @@ defmodule HighloadCup do
   # pass:  ["text/*"],
   # json_decoder: Poison
 
+  def perform(_, _) do
+    HighloadCup.Dataloader.perform()
+  end
+
   def new(conn, opts) do
     {:ok, body, conn} = read_body(conn, opts)
-    {:ok, decoded_body} = body |> Poison.decode() |> IO.inspect()
+    {:ok, decoded_body} = body |> Poison.decode()
 
-    case Account.insert(decoded_body) |> IO.inspect() do
+    if decoded_body["id"] == nil do
+      conn
+      |> send_resp(400, "")
+      |> halt
+    end
+
+    case Account.insert(decoded_body) do
       {:ok, _account} ->
         conn
         |> put_resp_content_type("application/json")
@@ -26,18 +38,58 @@ defmodule HighloadCup do
 
   def update(%{path_params: %{"id" => id}} = conn, opts) do
     {:ok, body, conn} = read_body(conn, opts)
-    {:ok, decoded_body} = body |> Poison.decode() |> IO.inspect()
 
-    case Account.update(id, decoded_body) do
-      {:ok, _account} ->
+    with {:ok, decoded_body} <- Poison.decode(body),
+         :ok <- validate_likes(decoded_body["likes"]),
+         {:ok, _account} <- Account.update(id, decoded_body) do
+      conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(202, "{}")
+    else
+      {:error, %Ecto.Changeset{}} ->
         conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(202, "{}")
+        |> send_resp(400, "")
 
-      {:error, :not_found} ->
+      {:error, :not_valid_like} ->
+        conn
+        |> send_resp(400, "")
+
+      _ ->
         conn
         |> send_resp(404, "")
+    end
+  end
 
+  def likes(conn, opts) do
+    {:ok, body, conn} = read_body(conn, opts)
+    {:ok, decoded_body} = body |> Poison.decode()
+
+    user_ids =
+      decoded_body["likes"]
+      |> Enum.map(fn %{"likee" => id, "liker" => account_id} -> [id, account_id] end)
+      |> List.flatten()
+      |> Enum.uniq()
+
+    account_ids_length = length(user_ids)
+
+    with :ok <- validate_likes(decoded_body["likes"]),
+         nil <- Enum.find(user_ids, fn account_id -> is_integer(account_id) == false end),
+         ^account_ids_length <-
+           Repo.one(from(a in Account, select: count("*"), where: a.id in ^user_ids)) do
+      decoded_body["likes"]
+      |> Enum.group_by(& &1["liker"])
+      |> Enum.each(fn {account_id, likes_list} ->
+        new_likes =
+          likes_list |> Enum.map(fn %{"likee" => id, "ts" => ts} -> %{"id" => id, "ts" => ts} end)
+
+        %{likes: likes} = Repo.get(Account, account_id)
+        Account.update(account_id, %{likes: (likes || []) ++ new_likes})
+      end)
+
+      conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(202, "{}")
+    else
       _ ->
         conn
         |> send_resp(400, "")
@@ -105,9 +157,8 @@ defmodule HighloadCup do
       result =
         SuggestService.fetch(params, account) |> cut_blank_values |> IO.inspect(label: "resu;t")
 
-        result |> Enum.map(& &1.id) |> IO.inspect(label: "resulted ids")
+      result |> Enum.map(& &1.id) |> IO.inspect(label: "resulted ids")
 
-      # require IEx; IEx.pry()
       conn
       |> put_resp_content_type("text/plain")
       |> send_resp(200, %{accounts: result} |> Poison.encode!())
@@ -130,7 +181,7 @@ defmodule HighloadCup do
   defp validate_params(%{"keys" => keys} = params) do
     params = %{
       params
-      | "keys" => String.split(keys, ",") |> IO.inspect() |> Enum.map(&String.to_atom/1)
+      | "keys" => String.split(keys, ",") |> Enum.map(&String.to_atom/1)
     }
 
     if Enum.any?(params["keys"] -- [:sex, :status, :interests, :country, :city]) do
@@ -149,5 +200,16 @@ defmodule HighloadCup do
       {int, _} -> if int > 0, do: params, else: :error
       _ -> :error
     end
+  end
+
+  defp validate_likes(nil), do: :ok
+
+  defp validate_likes(params) do
+    not_valid_like =
+      params
+      |> Enum.map(fn %{"ts" => ts} -> ts end)
+      |> Enum.find(fn timestamp -> is_integer(timestamp) == false end)
+
+    if not_valid_like, do: {:error, :not_valid_like}, else: :ok
   end
 end

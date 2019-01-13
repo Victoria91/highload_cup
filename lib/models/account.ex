@@ -16,7 +16,7 @@ defmodule HighloadCup.Models.Account do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @derive {Poison.Encoder, only: [:email, :id, :status, :fname, :sname]}
+  # @derive {Poison.Encoder, only: [:email, :id, :status, :fname, :sname]}
 
   schema "accounts" do
     field(:email, :string)
@@ -60,8 +60,22 @@ defmodule HighloadCup.Models.Account do
   def changeset(struct, params \\ %{}) do
     struct
     |> cast(params, @cast_fields)
+    |> validate_format(:email, ~r/@/)
+    |> validate_inclusion(:sex, ["f", "m"])
+    |> validate_inclusion(:status, ["свободны", "заняты", "всё сложно"])
     |> unique_constraint(:email)
     |> unique_constraint(:phone)
+  end
+
+  def changeset_without_validations(struct, params \\ %{}) do
+    struct
+    |> cast(params, @cast_fields)
+  end
+
+  def insert(%{} = params, skip_validations: true) do
+    %__MODULE__{}
+    |> changeset_without_validations(params)
+    |> Repo.insert()
   end
 
   def insert(%{} = params) do

@@ -26,23 +26,27 @@ defmodule HighloadCup.GroupService do
 
   def group_by_clause(query, array_of_fields) when array_of_fields == [:interests] do
     Enum.reduce(array_of_fields, query, fn field, acc -> group_by_clause(acc, field) end)
-    |> select([a], %{count: count(a.id), interests: fragment("unnest(?) as unnest_interests", a.interests)})
+    |> select([a], %{
+      count: count(a.id),
+      interests: fragment("unnest(?)  COLLATE \"C\" as unnest_interests", a.interests)
+    })
   end
 
   def group_by_clause(query, array_of_fields) do
-    array_of_fields |> IO.inspect
+    array_of_fields |> IO.inspect()
+
     Enum.reduce(array_of_fields, query, fn field, acc -> group_by_clause(acc, field) end)
     |> select([a], merge(map(a, ^array_of_fields), %{count: count(a.id)}))
   end
 
   def order_by_clause(query, "-1", [:interests]) do
     query
-    |> order_by([desc: :count, desc: fragment("unnest_interests")])
+    |> order_by(desc: :count, desc: fragment("unnest_interests"))
   end
 
   def order_by_clause(query, "1", [:interests]) do
     query
-    |> order_by([asc: :count, asc: fragment("unnest_interests")])
+    |> order_by(asc: :count, asc: fragment("unnest_interests"))
   end
 
   def order_by_clause(query, "-1", keys) do
@@ -69,8 +73,12 @@ defmodule HighloadCup.GroupService do
     perform_filtering(filter_values)
   end
 
-  def generate_order_by_params(keys, order) when order in [:desc, :asc] do
-    Enum.reduce(keys, ["#{order}": :count], fn key, acc -> acc ++ ["#{order}": key] end)
+  def generate_order_by_params(keys, :desc) do
+    Enum.reduce(keys, [desc: :count], fn key, acc -> acc ++ [desc_nulls_last: key] end)
+  end
+
+  def generate_order_by_params(keys, :asc) do
+    Enum.reduce(keys, [asc: :count], fn key, acc -> acc ++ [asc_nulls_first: key] end)
   end
 
   def perform_filtering([]), do: Account

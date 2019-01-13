@@ -8,6 +8,14 @@ defmodule HighloadCup.Router do
     HighloadCup.new(conn, [])
   end
 
+  get "/accounts/perform" do
+    HighloadCup.perform(conn, [])
+  end
+
+  post "/accounts/likes" do
+    HighloadCup.likes(conn, [])
+  end
+
   post "/accounts/:id" do
     HighloadCup.update(conn, [])
   end
@@ -27,8 +35,6 @@ defmodule HighloadCup.Router do
   get "accounts/:id/suggest" do
     HighloadCup.suggest(conn, [])
   end
-
-  # forward "/users", to: UsersRouter
 
   match _ do
     send_resp(conn, 404, "oops")
