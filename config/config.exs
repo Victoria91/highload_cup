@@ -31,6 +31,15 @@ use Mix.Config
 
 config :highload_cup, ecto_repos: [HighloadCup.Repo]
 
+config :highload_cup, :time,
+  current_time:
+    (try do
+       File.read!('/tmp/data/options.txt') |> String.split("\n") |> List.first()
+       |> String.to_integer()
+     rescue
+       _ -> nil
+     end)
+
 config :highload_cup, HighloadCup.Repo,
   adapter: Ecto.Adapters.Postgres,
   username: "postgres",

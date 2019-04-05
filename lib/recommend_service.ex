@@ -4,16 +4,10 @@ defmodule HighloadCup.RecommendService do
 
   import Ecto.Query
 
-  def perform(%{"limit" => limit_value} = search_params, %{id: id, interests: interests, sex: sex}) do
-    # highload_cup=# select array_length(array(select unnest(ARRAY[1, 2, 7, 21]) except select unnest(ARRAY[2, 3, 4, 5])), 1);
-    #  array_length
-    # --------------
-    #             3
-    # (1 row)
+  @current_time Application.get_env(:highload_cup, :time)[:current_time]
 
-    # current_time = :os.system_time(:millisecond)
-    current_time = 1_546_083_844
-    interests |> IO.inspect(label: "source interests")
+  def perform(%{"limit" => limit_value} = search_params, %{id: id, interests: interests, sex: sex}) do
+    # current_time = current_time
 
     if interests do
       base_query(search_params)
@@ -25,21 +19,13 @@ defmodule HighloadCup.RecommendService do
         sname: a.sname,
         birth: a.birth,
         premium: a.premium
-        # premium_true: fragment("(premium->>'finish')::bigint > ?", ^current_time)
-
-        # different_interests:
-        #   fragment(
-        #     "array (select unnest (array (select interests from accounts where id = ?)) except select unnest(?))",
-        #     ^id,
-        #     a.interests
-        #   )
       })
       |> order_by(
         [a],
         desc:
           fragment(
             "((premium->>'finish')::bigint > ?)::int = 1 and premium is not null",
-            ^current_time
+            ^@current_time
           ),
         desc: a.status == "свободны",
         desc: a.status == "всё сложно",

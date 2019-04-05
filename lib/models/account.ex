@@ -1,15 +1,4 @@
 defmodule HighloadCup.Models.Account do
-  @moduledoc """
-  Модель которая содержит всю информацию о канале связи
-
-  `name` - имя канала, задается администратором
-  `type` - тип связи, к которому относится канал. например vk, telegram и т.д.
-  `identifier` - уникальный идентификатор канала
-  `priority` - приоритет данного канала связи при роутинге активностей
-  `config` - хранит конфигурацию канала. Перед созданием канала конфигурацию необходимо задать в файле config/config.exs.
-   Имя канала в конфигурации приложения должно совпадать с полем identifier в БД
-  """
-
   alias HighloadCup.Repo
   alias HighloadCup.Models.Account
 
@@ -32,9 +21,9 @@ defmodule HighloadCup.Models.Account do
     field(:status, :string)
     field(:interests, {:array, :string})
     field(:premium, :map)
-    field(:likes, {:array, :map})
+    field(:likes, :string)
 
-    timestamps()
+    # timestamps()
   end
 
   @cast_fields [
@@ -76,6 +65,10 @@ defmodule HighloadCup.Models.Account do
     %__MODULE__{}
     |> changeset_without_validations(params)
     |> Repo.insert()
+  end
+
+  def insert(%{"likes" => likes} = params) when is_list(likes) do
+    %{params | "likes" => Jason.encode!(likes)} |> insert
   end
 
   def insert(%{} = params) do

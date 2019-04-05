@@ -8,7 +8,7 @@ defmodule HighloadCup do
   alias HighloadCup.{SearchService, GroupService, RecommendService, Repo, SuggestService}
   # plug Plug.Parsers, parsers: [:json],
   # pass:  ["text/*"],
-  # json_decoder: Poison
+  # json_decoder: Jason
 
   def perform(_, _) do
     HighloadCup.Dataloader.perform()
@@ -16,7 +16,7 @@ defmodule HighloadCup do
 
   def new(conn, opts) do
     {:ok, body, conn} = read_body(conn, opts)
-    {:ok, decoded_body} = body |> Poison.decode()
+    {:ok, decoded_body} = body |> Jason.decode()
 
     if decoded_body["id"] == nil do
       conn
@@ -39,7 +39,7 @@ defmodule HighloadCup do
   def update(%{path_params: %{"id" => id}} = conn, opts) do
     {:ok, body, conn} = read_body(conn, opts)
 
-    with {:ok, decoded_body} <- Poison.decode(body),
+    with {:ok, decoded_body} <- Jason.decode(body),
          :ok <- validate_likes(decoded_body["likes"]),
          {:ok, _account} <- Account.update(id, decoded_body) do
       conn
@@ -62,7 +62,7 @@ defmodule HighloadCup do
 
   def likes(conn, opts) do
     {:ok, body, conn} = read_body(conn, opts)
-    {:ok, decoded_body} = body |> Poison.decode()
+    {:ok, decoded_body} = body |> Jason.decode()
 
     user_ids =
       decoded_body["likes"]
@@ -83,7 +83,14 @@ defmodule HighloadCup do
           likes_list |> Enum.map(fn %{"likee" => id, "ts" => ts} -> %{"id" => id, "ts" => ts} end)
 
         %{likes: likes} = Repo.get(Account, account_id)
-        Account.update(account_id, %{likes: (likes || []) ++ new_likes})
+
+        {:ok, result} =
+          Account.update(account_id, %{
+            likes: "#{delete_last(likes)}#{Jason.encode!(new_likes) |> delete_first(likes)}"
+          })
+
+        # IO.inspect result.likes, label: "likes after update"
+        # Jason.decode! result.likes
       end)
 
       conn
@@ -96,14 +103,19 @@ defmodule HighloadCup do
     end
   end
 
+  defp delete_last(nil), do: ""
+  defp delete_last(string), do: String.replace(string, "]", ",")
+  defp delete_first(string, nil), do: string
+  defp delete_first(string, _old_likes), do: String.replace(string, "[", "")
+
   def filter(conn, _) do
-    params = Plug.Conn.Query.decode(conn.query_string) |> IO.inspect()
+    params = Plug.Conn.Query.decode(conn.query_string)
 
     with %{} = params <- validate_params(params),
          {:ok, result} <- SearchService.perform(params) do
       conn
       |> put_resp_content_type("text/plain")
-      |> send_resp(200, %{accounts: result} |> Poison.encode!())
+      |> send_resp(200, %{accounts: result} |> Jason.encode!())
     else
       _ ->
         conn
@@ -112,7 +124,7 @@ defmodule HighloadCup do
   end
 
   def group(conn, _) do
-    params = Plug.Conn.Query.decode(conn.query_string) |> IO.inspect()
+    params = Plug.Conn.Query.decode(conn.query_string)
 
     case validate_params(params) do
       :error ->
@@ -124,7 +136,7 @@ defmodule HighloadCup do
 
         conn
         |> put_resp_content_type("text/plain")
-        |> send_resp(200, %{groups: res} |> Poison.encode!() |> IO.inspect())
+        |> send_resp(200, %{groups: res} |> Jason.encode!())
     end
   end
 
@@ -137,7 +149,7 @@ defmodule HighloadCup do
 
       conn
       |> put_resp_content_type("text/plain")
-      |> send_resp(200, %{accounts: result} |> Poison.encode!())
+      |> send_resp(200, %{accounts: result} |> Jason.encode!())
     else
       nil ->
         conn
@@ -154,14 +166,13 @@ defmodule HighloadCup do
 
     with %{} = params <- validate_params(decoded_params),
          %Account{} = account <- Repo.get(Account, id) do
-      result =
-        SuggestService.fetch(params, account) |> cut_blank_values |> IO.inspect(label: "resu;t")
+      result = SuggestService.fetch(params, account) |> cut_blank_values
 
-      result |> Enum.map(& &1.id) |> IO.inspect(label: "resulted ids")
+      # result |> Enum.map(& &1.id) |> IO.inspect(label: "resulted ids")
 
       conn
       |> put_resp_content_type("text/plain")
-      |> send_resp(200, %{accounts: result} |> Poison.encode!())
+      |> send_resp(200, %{accounts: result} |> Jason.encode!())
     else
       nil ->
         conn

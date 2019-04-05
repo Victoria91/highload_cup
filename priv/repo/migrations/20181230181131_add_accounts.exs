@@ -17,7 +17,7 @@ defmodule HighloadCup.Repo.Migrations.AddAccounts do
       add(:premium, :json)
       add(:likes, {:array, :map})
 
-      timestamps
+      # timestamps
     end
   end
 end

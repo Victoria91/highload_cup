@@ -10,7 +10,6 @@ defmodule HighloadCup.GroupService do
     |> group_by_clause(keys)
     |> order_by_clause(order, keys)
     |> limit_clause(limit)
-    |> IO.inspect()
     |> HighloadCup.Repo.all()
   end
 
@@ -33,8 +32,6 @@ defmodule HighloadCup.GroupService do
   end
 
   def group_by_clause(query, array_of_fields) do
-    array_of_fields |> IO.inspect()
-
     Enum.reduce(array_of_fields, query, fn field, acc -> group_by_clause(acc, field) end)
     |> select([a], merge(map(a, ^array_of_fields), %{count: count(a.id)}))
   end

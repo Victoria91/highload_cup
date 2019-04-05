@@ -5,7 +5,7 @@ defmodule HighloadCup.SuggestService do
   import Ecto.Query
 
   def fetch(%{"limit" => limit_value} = params, account) do
-    IO.inspect(params)
+    # IO.inspect(params)
 
     result =
       perform(params, account)
@@ -28,7 +28,7 @@ defmodule HighloadCup.SuggestService do
 
   def perform(_, %{likes: nil}), do: []
 
-  def perform(params, %{id: id, sex: sex, likes: likes} = account) do
+  def perform(params, %{id: id, sex: sex, likes: likes} = _account) do
     #   Mnesia.create_schema([node()])
     #   Mnesia.start()
     #   Mnesia.create_table(Likes, attributes: [:id, :liker_id, :sex, :account_id, :ts])
@@ -55,21 +55,18 @@ defmodule HighloadCup.SuggestService do
 
     # Mnesia.transaction(data_to_write)
 
+    likes = Jason.decode!(likes)
     account_like_ids = likes |> Enum.map(& &1["id"])
 
-    accounts = fetch_similar_likes_accounts(account.id, account_like_ids, params) |> IO.inspect()
-
-    accounts |> Enum.map(& &1.id) |> IO.inspect(label: "similars", limit: :infinity)
+    accounts = fetch_similar_likes_accounts(id, sex, account_like_ids, params)
 
     accounts
     |> Enum.map(fn account ->
-      res = fetch_res(account, account_like_ids, likes)
-      IO.inspect(res.weight, label: "result for #{account.id}")
-      res
+      fetch_res(account, account_like_ids, likes)
     end)
   end
 
-  def fetch_similar_likes_accounts(id, account_like_ids, params) do
+  def fetch_similar_likes_accounts(id, account_sex, account_like_ids, params) do
     Account
     |> where(
       [a],
@@ -80,16 +77,19 @@ defmodule HighloadCup.SuggestService do
       )
     )
     |> where_clause_by_params(params)
+    |> where([a], a.sex == ^account_sex)
     |> where([a], a.id != ^id)
+    |> select([a], a.likes)
     |> Repo.all()
   end
 
   defp format_ids(account_like_ids) do
     account_like_ids
-    |> inspect(limit: :infinity)
+    |> inspect(label: :infinity)
     |> String.replace("[", "")
     |> String.replace("]", "")
     |> String.replace(",", ",|")
+    |> String.replace(" ", "")
   end
 
   def where_clause_by_params(query, %{"country" => country}) do
@@ -115,7 +115,8 @@ defmodule HighloadCup.SuggestService do
     Mnesia.transaction(data_to_write)
   end
 
-  def fetch_res(%{likes: likes} = account, account_like_ids, account_likes) do
+  def fetch_res(likes, account_like_ids, account_likes) do
+    likes = likes |> Jason.decode!()
     result_ids = likes |> Enum.map(& &1["id"])
 
     results = result_ids |> Enum.group_by(fn like -> like in account_like_ids end)
@@ -129,17 +130,20 @@ defmodule HighloadCup.SuggestService do
         |> Tuple.to_list()
         |> List.last()
         |> Enum.map(fn weight_id ->
-          %{"ts" => ts} = likes |> Enum.find(fn %{"id" => id, "ts" => ts} -> id == weight_id end)
+          %{"ts" => ts} = likes |> Enum.find(fn %{"id" => id} -> id == weight_id end)
 
-          %{"ts" => like_ts} =
-            account_likes |> Enum.find(fn %{"id" => id, "ts" => ts} -> id == weight_id end)
+          %{"ts" => like_ts} = account_likes |> Enum.find(fn %{"id" => id} -> id == weight_id end)
 
           1 / abs(ts - like_ts)
         end)
     end
 
-    IO.inspect(weights, label: "weights")
-    weights = if weights == :error, do: 0, else: weights |> Enum.sum()
-    %{not_in_list: not_in_list, weight: weights}
+    total_weights =
+      case weights do
+        :error -> 0
+        _ -> Enum.sum(weights)
+      end
+
+    %{not_in_list: not_in_list, weight: total_weights}
   end
 end

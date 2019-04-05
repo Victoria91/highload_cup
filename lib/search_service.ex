@@ -19,11 +19,12 @@ defmodule HighloadCup.SearchService do
     "contains"
   ]
 
+  @current_time Application.get_env(:highload_cup, :time)[:current_time]
+
   def perform(%{"limit" => limit} = query_map) do
     decoded_query =
       query_map
       |> decode_query
-      |> IO.inspect(label: "decoded")
 
     illigal_clauses = Enum.any?(decoded_query, fn {_, op, _} -> op not in @legal_ops end)
 
@@ -63,8 +64,6 @@ defmodule HighloadCup.SearchService do
   end
 
   def select_clause(query, array_of_fields) do
-    array_of_fields |> IO.inspect(label: "array_of_fields")
-
     query
     |> select([a], merge(map(a, ^array_of_fields), %{id: a.id, email: a.email}))
   end
@@ -82,7 +81,7 @@ defmodule HighloadCup.SearchService do
   def where_clause(query, {field_name, operation, value})
       when operation in ["eq", "year"] and field_name in ["birth", "joined"] do
     {start_date, end_date} = fetch_year_boundaries(value)
-    # + 631152000
+
     query
     |> where(
       [a],
@@ -92,9 +91,7 @@ defmodule HighloadCup.SearchService do
 
   def where_clause(query, {"premium", "now", "1"}) do
     query
-    |> where([a], fragment("(premium->>'finish')::bigint > ?", 1_546_083_844))
-
-    # |> where([a], fragment("(premium->>'finish')::bigint > ?", ^:os.system_time(:millisecond)))
+    |> where([a], fragment("(premium->>'finish')::bigint > ?", @current_time))
   end
 
   def where_clause(query, {field_name, "eq", value})
@@ -116,12 +113,12 @@ defmodule HighloadCup.SearchService do
 
   def where_clause(query, {"likes", _, value}) do
     query
-    |> where([a], fragment("?::text ilike ?", a.likes, ^"% #{value},%"))
+    |> where([a], like(a.likes, ^"%:#{value},%"))
   end
 
   def where_clause(query, {"email", "domain", value}) do
     query
-    |> where([a], ilike(a.email, ^"%#{value}"))
+    |> where([a], like(a.email, ^"%#{value}"))
   end
 
   def where_clause(query, {field_name, "lt", value}) do
@@ -155,12 +152,12 @@ defmodule HighloadCup.SearchService do
 
   def where_clause(query, {"sname", "starts", value}) do
     query
-    |> where([a], ilike(a.sname, ^"#{value}%"))
+    |> where([a], like(a.sname, ^"#{value}%"))
   end
 
   def where_clause(query, {"phone", "code", value}) do
     query
-    |> where([a], ilike(a.phone, ^"%(#{value})%"))
+    |> where([a], like(a.phone, ^"%(#{value})%"))
   end
 
   # 4	fname	eq - соответствие конкретному имени;
