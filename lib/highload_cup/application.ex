@@ -14,9 +14,10 @@ defmodule HighloadCup.Application do
       ),
       {HighloadCup.Repo, []}
     ]
+
     Logger.remove_backend(:console)
 
-    IO.inspect Application.get_env(:highload_cup, :time)[:current_time], label: "current_time"
+    IO.inspect(Application.get_env(:highload_cup, :time)[:current_time], label: "current_time")
     Supervisor.start_link(children, strategy: :one_for_one)
   end
 end

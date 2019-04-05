@@ -27,7 +27,9 @@ defmodule HighloadCup.MixProject do
       {:ecto, "~> 3.0.6"},
       {:postgrex, ">= 0.0.0"},
       {:ecto_sql, "~> 3.0"},
-      {:jason, "~> 1.0"}
+      {:jason, "~> 1.0"},
+          {:ecto_enum, "~> 1.2"}
+
     ]
   end
 

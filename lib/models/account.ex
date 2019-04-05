@@ -5,6 +5,9 @@ defmodule HighloadCup.Models.Account do
   use Ecto.Schema
   import Ecto.Changeset
 
+  import EctoEnum
+  defenum StatusEnum, :status, ["свободны", "заняты", "всё сложно"]
+
   # @derive {Poison.Encoder, only: [:email, :id, :status, :fname, :sname]}
 
   schema "accounts" do
@@ -18,7 +21,7 @@ defmodule HighloadCup.Models.Account do
     field(:city, :string)
 
     field(:joined, :integer)
-    field(:status, :string)
+    field(:status, StatusEnum)
     field(:interests, {:array, :string})
     field(:premium, :map)
     field(:likes, :string)
@@ -51,7 +54,7 @@ defmodule HighloadCup.Models.Account do
     |> cast(params, @cast_fields)
     |> validate_format(:email, ~r/@/)
     |> validate_inclusion(:sex, ["f", "m"])
-    |> validate_inclusion(:status, ["свободны", "заняты", "всё сложно"])
+    # |> validate_inclusion(:status, ["свободны", "заняты", "всё сложно"])
     |> unique_constraint(:email)
     |> unique_constraint(:phone)
   end
